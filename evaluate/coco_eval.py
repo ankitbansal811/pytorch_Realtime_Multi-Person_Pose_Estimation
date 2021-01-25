@@ -84,12 +84,13 @@ def get_outputs(img, model, preprocess):
     :param model: pytorch model
     :returns: numpy arrays, the averaged paf and heatmap
     """
-    inp_size = cfg.DATASET.IMAGE_SIZE
+    inp_size = cfg.DATASET.IMAGE_SIZE  #=368 pixels
 
     # padding
     im_croped, im_scale, real_shape = im_transform.crop_with_factor(
         img, inp_size, factor=cfg.MODEL.DOWNSAMPLE, is_ceil=True)
-
+    # cfg.MODEL.DOWNSAMPLE = 8
+    
     if preprocess == 'rtpose':
         im_data = rtpose_preprocess(im_croped)
 
@@ -105,7 +106,7 @@ def get_outputs(img, model, preprocess):
     batch_images= np.expand_dims(im_data, 0)
 
     # several scales as a batch
-    batch_var = torch.from_numpy(batch_images).cuda().float()
+    batch_var = torch.from_numpy(batch_images).float()
     predicted_outputs, _ = model(batch_var)
     output1, output2 = predicted_outputs[-2], predicted_outputs[-1]
     heatmap = output2.cpu().data.numpy().transpose(0, 2, 3, 1)[0]

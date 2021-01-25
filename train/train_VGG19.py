@@ -12,13 +12,17 @@ from lib.network.rtpose_vgg import get_model, use_vgg
 from lib.datasets import coco, transforms, datasets
 from lib.config import update_config
 
-DATA_DIR = '/data/coco'
+DATA_DIR = 'data/coco'
 
-ANNOTATIONS_TRAIN = [os.path.join(DATA_DIR, 'annotations', item) for item in ['person_keypoints_train2017.json']]
-ANNOTATIONS_VAL = os.path.join(DATA_DIR, 'annotations', 'person_keypoints_val2017.json')
-IMAGE_DIR_TRAIN = os.path.join(DATA_DIR, 'images/train2017')
-IMAGE_DIR_VAL = os.path.join(DATA_DIR, 'images/val2017')
+#ANNOTATIONS_TRAIN = [os.path.join(DATA_DIR, 'annotations', item) for item in ['person_keypoints_train2017.json']]
+#ANNOTATIONS_VAL = os.path.join(DATA_DIR, 'annotations', 'person_keypoints_val2017.json')
+#IMAGE_DIR_TRAIN = os.path.join(DATA_DIR, 'images/train2017')
+#IMAGE_DIR_VAL = os.path.join(DATA_DIR, 'images/val2017')
 
+ANNOTATIONS_TRAIN = [os.path.join(DATA_DIR, 'annotations', item) for item in ['val_subset.json']]
+ANNOTATIONS_VAL = os.path.join(DATA_DIR, 'annotations', 'val_subset.json')
+IMAGE_DIR_TRAIN = os.path.join(DATA_DIR, 'images')
+IMAGE_DIR_VAL = os.path.join(DATA_DIR, 'images')
 
 def train_cli(parser):
     group = parser.add_argument_group('dataset and loader')
@@ -27,7 +31,7 @@ def train_cli(parser):
     group.add_argument('--val-annotations', default=ANNOTATIONS_VAL)
     group.add_argument('--val-image-dir', default=IMAGE_DIR_VAL)
     group.add_argument('--pre-n-images', default=8000, type=int,
-                       help='number of images to sampe for pretraining')
+                       help='number of images to sample for pretraining')
     group.add_argument('--n-images', default=None, type=int,
                        help='number of images to sample')
     group.add_argument('--duplicate-data', default=None, type=int,
@@ -45,8 +49,8 @@ def train_cli(parser):
     group.add_argument('--nesterov', dest='nesterov', default=True, type=bool)     
     group.add_argument('--print_freq', default=20, type=int, metavar='N',
                     help='number of iterations to print the training statistics')    
-                   
-                                         
+
+
 def train_factory(args, preprocess, target_transforms):
     train_datas = [datasets.CocoKeypoints(
         root=args.train_image_dir,
@@ -203,11 +207,11 @@ def train(train_loader, model, optimizer, epoch):
         heatmap_target = heatmap_target.cuda()
         paf_target = paf_target.cuda()
         # compute output
-        _,saved_for_loss = model(img)
+        _, saved_for_loss = model(img)
         
         total_loss, saved_for_log = get_loss(saved_for_loss, heatmap_target, paf_target)
         
-        for name,_ in meter_dict.items():
+        for name, _ in meter_dict.items():
             meter_dict[name].update(saved_for_log[name], img.size(0))
         losses.update(total_loss, img.size(0))
 
@@ -254,7 +258,7 @@ def validate(val_loader, model, epoch):
         paf_target = paf_target.cuda()
         
         # compute output
-        _,saved_for_loss = model(img)
+        _, saved_for_loss = model(img)
         
         total_loss, saved_for_log = get_loss(saved_for_loss, heatmap_target, paf_target)
                
@@ -296,7 +300,7 @@ class AverageMeter(object):
 
 # model
 model = get_model(trunk='vgg19')
-model = torch.nn.DataParallel(model).cuda()
+model = torch.nn.DataParallel(model) #.cuda()
 # load pretrained
 use_vgg(model)
 
@@ -317,9 +321,9 @@ for epoch in range(5):
     train_loss = train(train_loader, model, optimizer, epoch)
 
     # evaluate on validation set
-    val_loss = validate(val_loader, model, epoch)  
-                                            
-# Release all weights                                   
+    val_loss = validate(val_loader, model, epoch)
+
+# Release all weights
 for param in model.module.parameters():
     param.requires_grad = True
 
@@ -327,8 +331,8 @@ trainable_vars = [param for param in model.parameters() if param.requires_grad]
 optimizer = torch.optim.SGD(trainable_vars, lr=args.lr,
                            momentum=args.momentum,
                            weight_decay=args.weight_decay,
-                           nesterov=args.nesterov)          
-                                                    
+                           nesterov=args.nesterov)
+
 lr_scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.8, patience=5, verbose=True, threshold=0.0001, threshold_mode='rel', cooldown=3, min_lr=0, eps=1e-08)
 
 best_val_loss = np.inf
@@ -343,7 +347,7 @@ for epoch in range(5, args.epochs):
     # evaluate on validation set
     val_loss = validate(val_loader, model, epoch)   
     
-    lr_scheduler.step(val_loss)                        
+    lr_scheduler.step(val_loss)
     
     is_best = val_loss<best_val_loss
     best_val_loss = min(val_loss, best_val_loss)
